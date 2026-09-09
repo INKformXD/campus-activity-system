@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>校园活动管理系统 V1.0</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">校园活动管理系统 <span class="version">V1.0</span></div>
+      <nav id="nav" class="nav"></nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 未登录：登录 / 注册 -->
+    <section id="view-guest" class="view hidden">
+      <div class="auth-wrap">
+        <div class="auth-card">
+          <div class="auth-tabs">
+            <button type="button" class="auth-tab active" data-tab="login">登录</button>
+            <button type="button" class="auth-tab" data-tab="register">注册</button>
+          </div>
+
+          <form id="form-login" class="auth-form">
+            <h2>用户登录</h2>
+            <label>用户名
+              <input type="text" id="login-username" placeholder="请输入用户名" autocomplete="off">
+            </label>
+            <label>密码
+              <input type="password" id="login-password" placeholder="请输入密码">
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">登录</button>
+            <p class="form-tip">演示账号：教师 teacher / 123456，学生 student / 123456</p>
+          </form>
+
+          <form id="form-register" class="auth-form hidden">
+            <h2>用户注册</h2>
+            <label>身份
+              <select id="reg-role">
+                <option value="student">学生</option>
+                <option value="teacher">活动组织教师</option>
+              </select>
+            </label>
+            <label>用户名
+              <input type="text" id="reg-username" placeholder="3-20 位字符，注册后不可重复" autocomplete="off">
+            </label>
+            <label>姓名
+              <input type="text" id="reg-name" placeholder="请输入真实姓名/昵称" autocomplete="off">
+            </label>
+            <label>密码
+              <input type="password" id="reg-password" placeholder="至少 6 位">
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">注册并登录</button>
+          </form>
+        </div>
+        <p class="demo-line">为方便验证，可 <a href="#" id="link-seed">载入一套演示数据</a>（含 1 名教师、1 名学生和 1 个活动）。</p>
+      </div>
+    </section>
+
+    <!-- 学生：活动大厅 -->
+    <section id="view-student-hall" class="view hidden">
+      <div class="section-head">
+        <h1>活动大厅</h1>
+        <p class="muted">浏览所有校园活动，点击卡片查看详情并报名。</p>
+      </div>
+      <div id="hall-list" class="card-list"></div>
+    </section>
+
+    <!-- 学生：我的报名 -->
+    <section id="view-student-mine" class="view hidden">
+      <div class="section-head">
+        <h1>我的报名</h1>
+        <p class="muted">报名截止前可以取消报名，取消后名额自动释放。</p>
+      </div>
+      <div id="mine-list" class="card-list"></div>
+    </section>
+
+    <!-- 教师：发布活动 -->
+    <section id="view-teacher-publish" class="view hidden">
+      <div class="section-head">
+        <h1>发布活动</h1>
+      </div>
+      <form id="form-publish" class="form-card">
+        <div class="form-row">
+          <label>活动标题 <span class="req">*</span>
+            <input type="text" id="pub-title" placeholder="如：2026 年秋季校园招聘会" maxlength="50">
+          </label>
+        </div>
+        <div class="form-row">
+          <label>活动地点 <span class="req">*</span>
+            <input type="text" id="pub-location" placeholder="如：大学生活动中心一楼" maxlength="100">
+          </label>
+        </div>
+        <div class="form-row form-row-3">
+          <label>开始时间 <span class="req">*</span>
+            <input type="datetime-local" id="pub-start">
+          </label>
+          <label>结束时间 <span class="req">*</span>
+            <input type="datetime-local" id="pub-end">
+          </label>
+          <label>报名截止时间 <span class="req">*</span>
+            <input type="datetime-local" id="pub-deadline">
+          </label>
+        </div>
+        <div class="form-row form-row-3">
+          <label>名额上限 <span class="req">*</span>
+            <input type="number" id="pub-capacity" placeholder="如：50（正整数）">
+          </label>
+        </div>
+        <div class="form-row">
+          <label>活动描述
+            <textarea id="pub-description" rows="4" placeholder="活动内容、面向对象、注意事项等" maxlength="500"></textarea>
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary">发布活动</button>
+      </form>
+    </section>
+
+    <!-- 教师：我的活动 -->
+    <section id="view-teacher-mine" class="view hidden">
+      <div class="section-head">
+        <h1>我的活动</h1>
+        <p class="muted">查看你发布的活动、报名名单，并管理报名状态。</p>
+      </div>
+      <div id="teacher-list" class="card-list"></div>
+    </section>
+  </main>
+
+  <!-- 通用弹窗：活动详情 / 报名 / 名单 -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-mask"></div>
+    <div class="modal-body">
+      <button type="button" id="modal-close" class="modal-close" aria-label="关闭">×</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <!-- 消息提示 -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
