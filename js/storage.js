@@ -43,6 +43,23 @@ const Store = {
     this._write(this.KEYS.users, users);
   },
 
+  /**
+   * 注销账户时的关联数据清理：
+   * 删除该用户；若为教师，同时删除其发布的活动及这些活动的全部报名记录；
+   * 若为学生，删除其全部报名记录。
+   */
+  purgeUserData(user) {
+    const ownActIds = new Set(
+      this.getActivities().filter(a => a.publisherId === user.id).map(a => a.id)
+    );
+    this._write(this.KEYS.activities,
+      this.getActivities().filter(a => a.publisherId !== user.id));
+    this._write(this.KEYS.registrations,
+      this.getRegistrations().filter(r => r.studentId !== user.id && !ownActIds.has(r.activityId)));
+    this._write(this.KEYS.users,
+      this.getUsers().filter(u => u.id !== user.id));
+  },
+
   /* ---------- 活动 ---------- */
   getActivities() {
     return this._read(this.KEYS.activities, []);

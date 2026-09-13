@@ -131,6 +131,7 @@
       html += `<button type="button" class="nav-item" data-view="${v}">${label}</button>`;
     });
     html += '<button type="button" id="btn-logout">退出登录</button>';
+    html += '<button type="button" id="btn-delete-account" class="btn-danger-text">注销账户</button>';
     nav.innerHTML = html;
 
     document.querySelectorAll('#nav .nav-item').forEach(btn => {
@@ -140,6 +141,14 @@
       Auth.logout();
       boot();
       toast('已退出登录');
+    });
+    document.getElementById('btn-delete-account').addEventListener('click', () => {
+      const user = Auth.currentUser();
+      const ok = confirm('注销账户将删除本人账号及其全部相关数据（教师发布的活动与报名、学生的报名记录），且不可恢复。确定要注销账户吗？');
+      if (!ok) return;
+      Auth.deleteAccount();
+      boot();
+      toast('账户已注销，相关数据已清除');
     });
   }
 
@@ -170,6 +179,10 @@
       }
     });
 
+    document.getElementById('reg-role').addEventListener('change', (e) => {
+      document.getElementById('reg-authcode-row').classList.toggle('hidden', e.target.value !== 'teacher');
+    });
+
     document.getElementById('form-register').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
@@ -177,7 +190,8 @@
           document.getElementById('reg-username').value,
           document.getElementById('reg-name').value,
           document.getElementById('reg-password').value,
-          document.getElementById('reg-role').value
+          document.getElementById('reg-role').value,
+          document.getElementById('reg-authcode').value
         );
         toast('注册成功，已自动登录', 'success');
         enterHome(user);

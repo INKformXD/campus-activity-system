@@ -46,6 +46,8 @@ body {
 .nav button:hover { background: rgba(255, 255, 255, .12); }
 .nav button.active { background: #fff; color: #2b6cb0; font-weight: 700; }
 .nav .user-info { font-size: 13px; color: #eef5ff; margin: 0 8px; }
+.nav .btn-danger-text { color: #fde8e8; }
+.nav .btn-danger-text:hover { background: rgba(229, 62, 62, .45); }
 
 /* 布局 */
 .container { max-width: 960px; margin: 24px auto; padding: 0 20px; }

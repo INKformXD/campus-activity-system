@@ -2,6 +2,9 @@
  * 业务逻辑层：注册、登录、会话管理与密码哈希。
  */
 const Auth = {
+  /** 教师注册认证码（演示环境固定值，正式环境应由管理端发放） */
+  TEACHER_AUTH_CODE: 'JS2026',
+
   /**
    * 密码哈希：优先使用 SHA-256（crypto.subtle）；
    * 在不支持的环境退化为内置哈希，保证不保存明文密码。
@@ -35,14 +38,18 @@ const Auth = {
 
   /**
    * 注册。成功返回 user；失败抛出 Error（message 为可直接提示的中文原因）。
+   * 教师身份注册需通过认证码校验（REQ-08），防止任意人员注册教师并发布活动。
    */
-  async register(username, name, password, role) {
+  async register(username, name, password, role, authCode) {
     username = (username || '').trim();
     name = (name || '').trim();
     password = password || '';
 
     if (role !== 'student' && role !== 'teacher') {
       throw new Error('请选择注册身份');
+    }
+    if (role === 'teacher' && (authCode || '').trim() !== this.TEACHER_AUTH_CODE) {
+      throw new Error('教师认证码不正确，无法注册教师身份');
     }
     if (!username) throw new Error('请填写用户名');
     if (username.length < 3 || username.length > 20) {
@@ -86,6 +93,18 @@ const Auth = {
   },
 
   logout() {
+    Store.clearSession();
+  },
+
+  /**
+   * 注销账户（REQ-09）：删除当前登录用户及其关联数据，且不可恢复。
+   * 教师账户：同时删除其发布的活动及这些活动的全部报名记录；
+   * 学生账户：删除其全部报名记录。注销后清除会话并返回登录页。
+   */
+  deleteAccount() {
+    const user = this.currentUser();
+    if (!user) return;
+    Store.purgeUserData(user);
     Store.clearSession();
   },
 
