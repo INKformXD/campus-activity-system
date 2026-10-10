@@ -81,10 +81,9 @@
     const state = activityState(a);
     if (state === 'closed') return '该活动已被教师关闭报名，无法报名';
     if (state === 'deadline') return '该活动报名已截止，无法报名';
-    if (Store.findActiveRegistration(a.id, student.id)) {
-      return '你已经报名该活动，请勿重复报名';
+    if (Store.getRegistrations().some(r => r.activityId === a.id && r.studentId === student.id && ['registered','pending','waitlisted'].includes(r.status))) {
+      return '你已申请该活动，请勿重复提交';
     }
-    if (regCount(a.id) >= a.capacity) return '该活动名额已满，无法报名';
     if (!studentNo || !studentNo.trim()) return '请填写学号';
     if (!phone || !phone.trim()) return '请填写手机号';
     if (!/^1\d{10}$/.test(phone.trim())) return '手机号格式不正确（应为 11 位数字）';
@@ -234,7 +233,7 @@
     const list = document.getElementById('hall-list');
     const acts = Store.getActivities()
       .slice()
-      .sort((x, y) => new Date(x.start) - new Date(y.start));
+      .sort((x, y) => new Date(x.startTime) - new Date(y.startTime));
     if (acts.length === 0) {
       list.innerHTML = '<div class="empty">暂无活动，请等待教师发布。</div>';
       return;
@@ -258,15 +257,13 @@
     if (state !== 'open') {
       actionHtml = `<p class="muted">${state === 'closed' ? '该活动已被教师关闭报名。' : '该活动报名已截止。'}</p>`;
     } else if (mine) {
-      actionHtml = '<p class="muted">你已报名该活动，可在“我的报名”中查看或取消。</p>';
-    } else if (count >= a.capacity) {
-      actionHtml = '<p class="muted">该活动名额已满。</p>';
+      actionHtml = '<p class="muted">你已确认参加该活动，可在“我的报名”中查看或取消。</p>';
     } else {
       actionHtml = `
         <form id="form-signup" class="signup-form">
           <label>学号 <input type="text" id="su-no" placeholder="请输入学号" maxlength="20"></label>
           <label>手机号 <input type="text" id="su-phone" placeholder="用于活动联系，11 位手机号" maxlength="11"></label>
-          <button type="submit" class="btn btn-primary">确认报名</button>
+          <button type="submit" class="btn btn-primary">${a.eligibility ? '提交审核申请' : count >= a.capacity ? '加入候补' : '确认报名'}</button>
         </form>`;
     }
 
@@ -275,6 +272,7 @@
       <div class="detail-row">时间：${fmtDateTime(a.startTime)} ~ ${fmtDateTime(a.endTime)}</div>
       <div class="detail-row">地点：${esc(a.location)}</div>
       <div class="detail-row">名额：${count} / ${a.capacity}　报名截止：${fmtDateTime(a.deadline)}</div>
+      ${a.eligibility ? `<div class="detail-row">参加条件：${esc(a.eligibility)}</div>` : ''}
       <div class="detail-row">发布教师：${esc(a.publisherName)}</div>
       <div class="desc">${esc(a.description || '（无活动描述）')}</div>
       ${actionHtml}
@@ -288,6 +286,8 @@
           document.getElementById('su-no').value,
           document.getElementById('su-phone').value);
         if (err) { toast(err, 'error'); return; }
+        const full = regCount(a.id) >= a.capacity;
+        const status = a.eligibility ? 'pending' : (full ? 'waitlisted' : 'registered');
         Store.addRegistration({
           id: uid('r'),
           activityId: a.id,
@@ -295,12 +295,12 @@
           studentName: user.name,
           studentNo: document.getElementById('su-no').value.trim(),
           phone: document.getElementById('su-phone').value.trim(),
-          status: 'registered',
+          status,
           createdAt: new Date().toISOString()
         });
-        toast('报名成功！', 'success');
+        toast(status === 'pending' ? '已提交，等待教师审核' : status === 'waitlisted' ? '已加入候补，按进入时间排序' : '报名成功！', 'success');
         closeModal();
-        renderHall();
+        showView('mine');
       });
     }
   }
@@ -311,7 +311,7 @@
     const listEl = document.getElementById('mine-list');
     const user = Auth.currentUser();
     const regs = Store.getRegistrations()
-      .filter(r => r.studentId === user.id && r.status === 'registered')
+      .filter(r => r.studentId === user.id && ['registered','pending','waitlisted'].includes(r.status))
       .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt));
 
     if (regs.length === 0) {
@@ -324,9 +324,10 @@
       if (!a) return '';
       const state = activityState(a);
       const cancelable = canCancel(a);
+      const label = r.status === 'registered' ? '已确认参加' : r.status === 'pending' ? '待教师审核' : '候补第 ' + (Store.waitlistedRegistrationsOf(a.id).findIndex(x => x.id === r.id) + 1) + ' 位';
       return `
         <div class="card">
-          <div class="card-title">${esc(a.title)}${stateBadge(state)}<span class="badge badge-mine">已报名</span></div>
+          <div class="card-title">${esc(a.title)}${stateBadge(state)}<span class="badge badge-mine">${label}</span></div>
           <div class="card-meta">活动时间：${fmtDateTime(a.startTime)}　地点：${esc(a.location)}</div>
           <div class="card-meta">报名时间：${fmtDateTime(r.createdAt)}　学号：${esc(r.studentNo)}　手机号：${esc(r.phone)}</div>
           <div class="card-actions">
@@ -354,9 +355,11 @@
       toast('报名已截止，无法取消', 'error');
       return;
     }
+    const wasRegistered = reg.status === 'registered';
     reg.status = 'cancelled';
     Store.updateRegistration(reg);
-    toast('已取消报名，名额已释放', 'success');
+    if (wasRegistered) promoteNext(reg.activityId);
+    toast(wasRegistered ? '已取消报名，名额已释放，候补队首已确认' : '已退出申请/候补', 'success');
     renderMine();
   }
 
@@ -374,6 +377,7 @@
         deadline: document.getElementById('pub-deadline').value,
         capacity: document.getElementById('pub-capacity').value,
         description: document.getElementById('pub-description').value.trim()
+        ,eligibility: document.getElementById('pub-eligibility').value.trim()
       };
       const err = validateActivity(f);
       if (err) { toast(err, 'error'); return; }
@@ -382,6 +386,7 @@
         id: uid('a'),
         title: f.title,
         description: f.description,
+        eligibility: f.eligibility,
         location: f.location,
         startTime: new Date(f.start).toISOString(),
         endTime: new Date(f.end).toISOString(),
@@ -421,7 +426,8 @@
         <div class="card">
           <div class="card-title">${esc(a.title)}${stateBadge(state)}</div>
           <div class="card-meta">活动时间：${fmtDateTime(a.startTime)} ~ ${fmtDateTime(a.endTime)}　地点：${esc(a.location)}</div>
-          <div class="card-meta">报名情况：${count} / ${a.capacity}　报名截止：${fmtDateTime(a.deadline)}</div>
+          <div class="card-meta">确认：${count} / ${a.capacity}；待审核：${Store.pendingRegistrationsOf(a.id).length}；候补：${Store.waitlistedRegistrationsOf(a.id).length}　报名截止：${fmtDateTime(a.deadline)}</div>
+          ${a.eligibility ? `<div class="card-meta">参加条件：${esc(a.eligibility)}</div>` : ''}
           <div class="card-actions">
             <button type="button" class="btn btn-primary btn-sm" data-roster="${a.id}">查看报名名单</button>
             <button type="button" class="btn ${closed ? 'btn-success' : 'btn-danger'} btn-sm" data-toggle="${a.id}">
@@ -446,8 +452,10 @@
       toast('无权查看该活动名单', 'error');
       return;
     }
-    const regs = Store.activeRegistrationsOf(a.id)
-      .sort((x, y) => new Date(x.createdAt) - new Date(y.createdAt));
+    const confirmed = Store.activeRegistrationsOf(a.id).sort((x, y) => new Date(x.createdAt) - new Date(y.createdAt));
+    const pending = Store.pendingRegistrationsOf(a.id);
+    const waiting = Store.waitlistedRegistrationsOf(a.id);
+    const regs = confirmed;
 
     let rows;
     if (regs.length === 0) {
@@ -463,14 +471,39 @@
         </tr>`).join('');
     }
 
+    const pendingRows = pending.map(r => `<tr><td>${esc(r.studentName)}</td><td>${esc(r.studentNo)}</td><td>${esc(r.phone)}</td><td>待审核</td><td><button data-review="${r.id}" data-result="approved">通过</button> <button data-review="${r.id}" data-result="rejected">不符合</button></td></tr>`).join('');
+    const waitingRows = waiting.map((r,i) => `<tr><td>${i+1}</td><td>${esc(r.studentName)}</td><td>${esc(r.studentNo)}</td><td>${fmtDateTime(r.createdAt)}</td><td>候补</td></tr>`).join('');
     openModal(`
       <h3>报名名单：${esc(a.title)}</h3>
-      <div class="detail-row">报名人数：${regs.length} / ${a.capacity}</div>
+      <div class="detail-row">已确认 ${regs.length}/${a.capacity}；待审核 ${pending.length}；候补 ${waiting.length}（按进入时间）</div>
+      <h4>已确认名单</h4>
       <table class="roster-table">
         <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>手机号</th><th>报名时间</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+      <h4>条件审核</h4><table class="roster-table"><thead><tr><th>姓名</th><th>学号</th><th>手机</th><th>状态</th><th>操作</th></tr></thead><tbody>${pendingRows || '<tr><td colspan="5">暂无待审核申请</td></tr>'}</tbody></table>
+      <h4>候补队列</h4><table class="roster-table"><thead><tr><th>顺序</th><th>姓名</th><th>学号</th><th>进入时间</th><th>状态</th></tr></thead><tbody>${waitingRows || '<tr><td colspan="5">暂无候补</td></tr>'}</tbody></table>
     `);
+    document.querySelectorAll('[data-review]').forEach(btn => btn.addEventListener('click', () => reviewRegistration(btn.dataset.review, btn.dataset.result)));
+  }
+
+  function promoteNext(activityId) {
+    const next = Store.waitlistedRegistrationsOf(activityId)[0];
+    if (!next) return;
+    next.status = 'registered';
+    next.promotedAt = new Date().toISOString();
+    Store.updateRegistration(next);
+  }
+
+  function reviewRegistration(regId, result) {
+    const r = Store.getRegistrations().find(x => x.id === regId);
+    if (!r || r.status !== 'pending') return;
+    const a = Store.findActivityById(r.activityId);
+    r.status = result === 'approved' ? (regCount(a.id) < a.capacity ? 'registered' : 'waitlisted') : 'rejected';
+    r.reviewedAt = new Date().toISOString();
+    Store.updateRegistration(r);
+    toast(result === 'approved' ? (r.status === 'registered' ? '审核通过并确认名额' : '审核通过，加入候补队列') : '已记录审核结果');
+    openRoster(a.id);
   }
 
   function toggleActivity(activityId) {

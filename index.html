@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>校园活动管理系统 V1.0</title>
+  <title>校园活动管理系统 V2.0</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand">校园活动管理系统 <span class="version">V1.0</span></div>
+      <div class="brand">校园活动管理系统 <span class="version">V2.0</span></div>
       <nav id="nav" class="nav"></nav>
     </div>
   </header>
@@ -111,6 +111,11 @@
         <div class="form-row form-row-3">
           <label>名额上限 <span class="req">*</span>
             <input type="number" id="pub-capacity" placeholder="如：50（正整数）">
+          </label>
+        </div>
+        <div class="form-row">
+          <label>参加条件（无条件可留空）
+            <input type="text" id="pub-eligibility" placeholder="填写后，报名需教师逐一确认" maxlength="200">
           </label>
         </div>
         <div class="form-row">

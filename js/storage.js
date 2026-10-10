@@ -111,6 +111,15 @@ const Store = {
     );
   },
 
+  waitlistedRegistrationsOf(activityId) {
+    return this.getRegistrations().filter(r => r.activityId === activityId && r.status === 'waitlisted')
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  },
+
+  pendingRegistrationsOf(activityId) {
+    return this.getRegistrations().filter(r => r.activityId === activityId && r.status === 'pending');
+  },
+
   /** 某学生对某活动的有效报名 */
   findActiveRegistration(activityId, studentId) {
     return this.getRegistrations().find(
