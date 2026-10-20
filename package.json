@@ -1,0 +1,14 @@
+{
+  "name": "campus-activity-system",
+  "version": "3.0.0",
+  "private": true,
+  "description": "校园活动管理系统 V3.0（纯前端原型，实验一至实验三迭代）",
+  "scripts": {
+    "test": "node tests/browser-smoke.js && node tests/v3-notify.js",
+    "test:regression": "node tests/browser-smoke.js",
+    "test:v3": "node tests/v3-notify.js"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
+  }
+}

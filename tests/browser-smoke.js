@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-core');
 const http = require('http'), fs=require('fs'), path=require('path');
 const root=path.resolve(__dirname,'..');
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
@@ -13,7 +13,7 @@ const dt=new Date(Date.now()+86400000), end=new Date(Date.now()+90000000), dl=ne
 const makeAct=async(title,cond)=>{await page.locator('#pub-title').fill(title);await page.locator('#pub-location').fill('测试地点');await page.locator('#pub-start').fill(local(dt));await page.locator('#pub-end').fill(local(end));await page.locator('#pub-deadline').fill(local(dl));await page.locator('#pub-capacity').fill('1');await page.locator('#pub-description').fill('测试');await page.locator('#pub-eligibility').fill(cond);await page.locator('#form-publish button[type=submit]').click();await page.waitForTimeout(80)};
 await makeAct('条件审核测试','需教师确认');
 await page.locator('#btn-logout').click();await login('student');
-const apply=async(title,no)=>{await page.locator('#view-student-hall .card').filter({hasText:title}).locator('[data-detail]').click();await page.waitForTimeout(30);await page.locator('#su-no').fill(no);await page.locator('#su-phone').fill('13800000000');await page.locator('#form-signup button[type=submit]').click();await page.waitForTimeout(70)};
+const apply=async(title,no)=>{await page.locator('#view-student-hall .card').filter({hasText:title}).locator('[data-detail]').click();await page.waitForTimeout(30);await page.locator('#su-no').fill(no);await page.locator('#su-phone').fill('13800000000');await page.locator('#form-signup button[type=submit]').click();await page.waitForTimeout(800);await page.locator('#btn-goto-mine').click();await page.waitForTimeout(120)};
 await apply('条件审核测试','001');check('条件活动申请待审核', (await page.locator('#mine-list').innerText()).includes('待教师审核'));
 await page.locator('#btn-logout').click();await page.locator('.auth-tab[data-tab="register"]').click();await page.locator('#reg-username').fill('student2');await page.locator('#reg-name').fill('测试学生2');await page.locator('#reg-password').fill('123456');await page.locator('#form-register button[type=submit]').click();await page.waitForTimeout(70);
 // Publish a full-capacity waitlist event for two students.
