@@ -66,7 +66,8 @@ npm test                # 回归 12 项 + V3.0 新增 26 项
 
 ## 版本管理
 
-使用本地 Git 仓库 `E:\软件作业\RJZY\campus-activity-system`（未配置远程地址）。V3.0 的主要提交：
+远程仓库：<https://github.com/INKformXD/campus-activity-system>（默认分支 `main`，V1.0→V3.0 历史完整）。
+本地仓库：`E:\软件作业\RJZY\campus-activity-system`。V3.0 的主要提交：
 
 | 提交 | 内容 |
 | --- | --- |
