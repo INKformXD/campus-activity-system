@@ -1,0 +1,69 @@
+{
+  "apply_total": 2748,
+  "result_counts": {
+    "accepted": 1689,
+    "waitlisted": 876,
+    "duplicate": 126,
+    "capacity_conflict": 41,
+    "server_error": 16
+  },
+  "result_pct": {
+    "accepted": 61.46,
+    "waitlisted": 31.88,
+    "duplicate": 4.59,
+    "capacity_conflict": 1.49,
+    "server_error": 0.58
+  },
+  "waitlist_total": 876,
+  "waitlist_converted": 130,
+  "waitlist_conv_rate": 14.84,
+  "wait_hours_median": 18.09,
+  "wait_hours_p90": 46.34,
+  "activities": 24,
+  "activities_full": 17,
+  "applies_median": 92.5,
+  "capacity_median": 74.0,
+  "peak_hours": [
+    9,
+    18
+  ],
+  "peak_share": 29.12,
+  "latency_overall_p50": 252.0,
+  "latency_overall_p95": 1555.3000000000002,
+  "latency_conflict_p50": 1308.0,
+  "latency_accept_p50": 215.0,
+  "slow_warn": 250,
+  "feedback_total": 112,
+  "feedback_themes": {
+    "候补与状态变化不可追踪": 33,
+    "正面反馈/无明确诉求": 28,
+    "难以发现合适活动": 22,
+    "提交结果不确定/重复点击": 19,
+    "地点/时间等细节信息": 10
+  },
+  "feedback_theme_pct": {
+    "候补与状态变化不可追踪": 29.5,
+    "正面反馈/无明确诉求": 25.0,
+    "难以发现合适活动": 19.6,
+    "提交结果不确定/重复点击": 17.0,
+    "地点/时间等细节信息": 8.9
+  },
+  "behav_list": 5058,
+  "behav_detail": 5424,
+  "behav_status": 293,
+  "behav_reg": 252,
+  "detail_per_list": 1.07,
+  "device": {
+    "mobile": 7818,
+    "desktop": 2848,
+    "tablet": 339
+  },
+  "mobile_share": 71.0,
+  "dup_total": 126,
+  "dup_retry_yes": 126,
+  "server_error": 16,
+  "e409": 41,
+  "e500": 16,
+  "reg_total": 2878,
+  "error_rate": 0.58
+}

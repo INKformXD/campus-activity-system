@@ -1,0 +1,7 @@
+﻿result,n,median,mean,p95
+accepted,1689,215.0,301.4,1195.8
+cancelled,130,198.5,196.5,293.0
+capacity_conflict,41,1308.0,1290.1,2295.0
+duplicate,126,223.0,332.4,809.8
+server_error,16,785.5,982.9,2058.2
+waitlisted,876,523.5,755.4,1732.2
