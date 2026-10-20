@@ -7,6 +7,7 @@ const Store = {
     users: 'cas_users',
     activities: 'cas_activities',
     registrations: 'cas_registrations',
+    notifications: 'cas_notifications',
     session: 'cas_session'
   },
 
@@ -56,6 +57,9 @@ const Store = {
       this.getActivities().filter(a => a.publisherId !== user.id));
     this._write(this.KEYS.registrations,
       this.getRegistrations().filter(r => r.studentId !== user.id && !ownActIds.has(r.activityId)));
+    // V3.0：通知同样属于用户数据，注销时一并清理
+    this._write(this.KEYS.notifications,
+      this.getNotifications().filter(n => n.userId !== user.id && !ownActIds.has(n.activityId)));
     this._write(this.KEYS.users,
       this.getUsers().filter(u => u.id !== user.id));
   },
@@ -125,6 +129,42 @@ const Store = {
     return this.getRegistrations().find(
       r => r.activityId === activityId && r.studentId === studentId && r.status === 'registered'
     ) || null;
+  },
+
+  /**
+   * V3.0：某学生对某活动尚未结束的申请（已确认 / 待审核 / 候补）。
+   * 用于提交幂等：同一学生对同一活动重复提交时返回既有记录，而不是新增一条申请。
+   */
+  findOpenRegistration(activityId, studentId) {
+    return this.getRegistrations().find(
+      r => r.activityId === activityId && r.studentId === studentId &&
+        ['registered', 'pending', 'waitlisted'].includes(r.status)
+    ) || null;
+  },
+
+  /* ---------- 站内消息（V3.0） ---------- */
+  getNotifications(userId) {
+    const list = this._read(this.KEYS.notifications, []);
+    return userId ? list.filter(n => n.userId === userId) : list;
+  },
+
+  addNotification(notification) {
+    const list = this._read(this.KEYS.notifications, []);
+    list.push(notification);
+    this._write(this.KEYS.notifications, list);
+  },
+
+  unreadCount(userId) {
+    return this.getNotifications(userId).filter(n => !n.read).length;
+  },
+
+  markNotificationsRead(userId) {
+    const list = this._read(this.KEYS.notifications, []);
+    let changed = false;
+    list.forEach(n => {
+      if (n.userId === userId && !n.read) { n.read = true; changed = true; }
+    });
+    if (changed) this._write(this.KEYS.notifications, list);
   },
 
   /* ---------- 会话 ---------- */
