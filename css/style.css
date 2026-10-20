@@ -237,3 +237,54 @@ body {
 }
 .toast.toast-error { background: #c53030; }
 .toast.toast-success { background: #2f855a; }
+
+/* ================= V3.0 报名状态可见性 ================= */
+
+/* 导航：消息入口与未读数 */
+.nav .nav-action { position: relative; font-weight: 600; }
+.nav .nav-action.has-unread { color: #fff; }
+.nav-badge {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 4px;
+  margin-left: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  background: #e53e3e;
+  color: #fff;
+  border-radius: 8px;
+}
+
+/* 我的报名：状态变化标记 */
+.badge-new { background: #fed7d7; color: #742a2a; font-weight: 700; }
+
+/* 消息中心 */
+.msg-list { display: flex; flex-direction: column; gap: 8px; }
+.msg-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.msg-item[data-activity] { cursor: pointer; }
+.msg-item[data-activity]:hover { border-color: #2b6cb0; background: #f7fbff; }
+.msg-unread { border-left: 4px solid #e53e3e; background: #fffaf9; }
+.msg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.msg-type { font-size: 14px; font-weight: 700; color: #2d3748; }
+.msg-time { font-size: 12px; color: #a0aec0; }
+.msg-body { font-size: 13px; color: #4a5568; margin-top: 4px; }
+.msg-activity { font-size: 12px; color: #718096; margin-top: 4px; }
+
+/* 报名回执 */
+.receipt {
+  border: 1px dashed #cbd5e0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  background: #f7fafc;
+}
+.receipt-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 3px 0; }
+.receipt-row span { color: #718096; }
+.receipt-status { color: #2b6cb0; }
+.result-actions { display: flex; gap: 10px; margin-top: 14px; }

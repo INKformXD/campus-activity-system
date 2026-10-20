@@ -41,6 +41,45 @@
     document.getElementById('modal-content').innerHTML = '';
   }
 
+  /* ================= 站内消息（V3.0） ================= */
+
+  const NOTICE_TEXT = {
+    confirmed: '已确认参加',
+    waitlisted: '进入候补队列',
+    pending: '等待教师审核',
+    promoted: '候补转正',
+    rejected: '申请未通过'
+  };
+
+  /** 写入一条状态消息；同一活动的同一状态变化只记一次（幂等保护） */
+  function pushNotice(userId, activityId, type, message) {
+    if (!userId) return;
+    Store.addNotification({
+      id: uid('n'),
+      userId: userId,
+      activityId: activityId,
+      type: type,
+      title: NOTICE_TEXT[type] || '报名状态更新',
+      message: message,
+      createdAt: new Date().toISOString(),
+      read: false
+    });
+  }
+
+  /** 该学生是否有某活动相关的未读消息 */
+  function hasUnreadNotice(userId, activityId) {
+    return Store.getNotifications(userId).some(n => n.activityId === activityId && !n.read);
+  }
+
+  function updateNoticeBadge() {
+    const user = Auth.currentUser();
+    const btn = document.getElementById('btn-notify');
+    if (!btn || !user) return;
+    const n = Store.unreadCount(user.id);
+    btn.innerHTML = '消息' + (n > 0 ? `<span class="nav-badge">${n}</span>` : '');
+    btn.classList.toggle('has-unread', n > 0);
+  }
+
   /* ================= 业务规则 ================= */
 
   /** 活动可报名状态：open（报名中）/ closed（教师关闭）/ deadline（已过截止时间） */
@@ -76,14 +115,12 @@
     return null;
   }
 
-  /** 报名校验：返回错误信息，合法返回 null */
+  /** 报名校验：返回错误信息，合法返回 null。
+   *  V3.0：重复申请不再当作错误，改为在提交时返回既有记录（幂等），此处只校验业务前置条件。 */
   function validateSignup(a, student, studentNo, phone) {
     const state = activityState(a);
     if (state === 'closed') return '该活动已被教师关闭报名，无法报名';
     if (state === 'deadline') return '该活动报名已截止，无法报名';
-    if (Store.getRegistrations().some(r => r.activityId === a.id && r.studentId === student.id && ['registered','pending','waitlisted'].includes(r.status))) {
-      return '你已申请该活动，请勿重复提交';
-    }
     if (!studentNo || !studentNo.trim()) return '请填写学号';
     if (!phone || !phone.trim()) return '请填写手机号';
     if (!/^1\d{10}$/.test(phone.trim())) return '手机号格式不正确（应为 11 位数字）';
@@ -129,6 +166,9 @@
     items.forEach(([v, label]) => {
       html += `<button type="button" class="nav-item" data-view="${v}">${label}</button>`;
     });
+    if (user.role === 'student') {
+      html += '<button type="button" class="nav-action" id="btn-notify">消息</button>';
+    }
     html += '<button type="button" id="btn-logout">退出登录</button>';
     html += '<button type="button" id="btn-delete-account" class="btn-danger-text">注销账户</button>';
     nav.innerHTML = html;
@@ -136,6 +176,9 @@
     document.querySelectorAll('#nav .nav-item').forEach(btn => {
       btn.addEventListener('click', () => showView(btn.dataset.view));
     });
+    const notifyBtn = document.getElementById('btn-notify');
+    if (notifyBtn) notifyBtn.addEventListener('click', openNoticeCenter);
+    updateNoticeBadge();
     document.getElementById('btn-logout').addEventListener('click', () => {
       Auth.logout();
       boot();
@@ -213,6 +256,94 @@
 
   /* ================= 学生：活动大厅 ================= */
 
+  /** 报名的当前状态文案；候补显示队列位置与总人数 */
+  function stateText(reg, activityId) {
+    if (reg.status === 'registered') return '已确认参加';
+    if (reg.status === 'pending') return '待教师审核';
+    if (reg.status === 'waitlisted') {
+      const queue = Store.waitlistedRegistrationsOf(activityId);
+      const idx = queue.findIndex(x => x.id === reg.id);
+      return `候补第 ${idx + 1} 位 / 共 ${queue.length} 人`;
+    }
+    if (reg.status === 'rejected') return '申请未通过';
+    if (reg.status === 'cancelled') return '已取消';
+    return reg.status;
+  }
+
+  function noticeMessage(reg, a) {
+    if (reg.status === 'registered') return `你报名的《${a.title}》已确认参加。`;
+    if (reg.status === 'waitlisted') {
+      return `《${a.title}》名额已满，你已进入候补队列，当前${stateText(reg, a.id)}。`;
+    }
+    return `《${a.title}》的参加申请已提交，等待教师审核。`;
+  }
+
+  /** 报名回执面板：替代原先 2.6 秒后消失的 toast，给出可回看的提交结果 */
+  function showSignupResult(a, reg, isRepeat) {
+    const tips = {
+      registered: '你已占用一个名额，报名截止前可在“我的报名”中取消。',
+      waitlisted: '名额释放时系统按进入顺序自动补位，补位结果会出现在“消息”里。',
+      pending: '该活动需要教师审核，审核结果会出现在“消息”里。'
+    };
+    openModal(`
+      <h3>报名回执</h3>
+      <div class="receipt">
+        <div class="receipt-row"><span>活动</span><b>${esc(a.title)}</b></div>
+        <div class="receipt-row"><span>状态</span><b class="receipt-status">${esc(stateText(reg, a.id))}</b></div>
+        <div class="receipt-row"><span>回执号</span><code>${esc(reg.requestNo || '—')}</code></div>
+        <div class="receipt-row"><span>提交时间</span><span>${fmtDateTime(reg.createdAt)}</span></div>
+      </div>
+      <p class="muted">${isRepeat ? '你此前已提交过该活动，系统返回同一条报名记录，未重复占用名额。' : ''}${esc(tips[reg.status] || '')}</p>
+      <div class="result-actions">
+        <button type="button" class="btn btn-primary" id="btn-goto-mine">查看我的报名</button>
+        <button type="button" class="btn" id="btn-close-result">关闭</button>
+      </div>
+    `);
+    document.getElementById('btn-goto-mine').addEventListener('click', () => { closeModal(); showView('mine'); });
+    document.getElementById('btn-close-result').addEventListener('click', closeModal);
+  }
+
+  /** 消息中心：打开即把当前用户的消息标记为已读（未读样式保留在本次弹窗中） */
+  function openNoticeCenter() {
+    const user = Auth.currentUser();
+    if (!user || user.role !== 'student') return;
+    const list = Store.getNotifications(user.id)
+      .slice()
+      .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt));
+    const unread = Store.unreadCount(user.id);
+
+    const body = list.length === 0
+      ? '<div class="empty">暂无消息。报名结果、审核结果和候补补位都会在这里留下记录。</div>'
+      : '<div class="msg-list">' + list.map(n => {
+          const a = Store.findActivityById(n.activityId);
+          return `
+            <div class="msg-item ${n.read ? '' : 'msg-unread'}" ${a ? `data-activity="${esc(n.activityId)}"` : ''}>
+              <div class="msg-head">
+                <span class="msg-type">${esc(n.title)}</span>
+                <span class="msg-time">${fmtDateTime(n.createdAt)}</span>
+              </div>
+              <div class="msg-body">${esc(n.message)}</div>
+              ${a ? `<div class="msg-activity">活动：${esc(a.title)}</div>` : '<div class="msg-activity">活动已删除</div>'}
+            </div>`;
+        }).join('') + '</div>';
+
+    openModal(`
+      <h3>消息</h3>
+      <p class="muted">共 ${list.length} 条${unread > 0 ? `，其中 ${unread} 条未读` : '，已全部读过'}</p>
+      ${body}
+    `);
+
+    Store.markNotificationsRead(user.id);
+    updateNoticeBadge();
+    renderMine(); // 消除“我的报名”卡片上的“有新变化”标记
+    document.querySelectorAll('.msg-item[data-activity]').forEach(el => {
+      el.addEventListener('click', () => {
+        closeModal();
+        openActivityDetail(el.dataset.activity);
+      });
+    });
+  }
+
   function activityCard(a, state) {
     const count = regCount(a.id);
     const full = count >= a.capacity;
@@ -251,13 +382,14 @@
     const state = activityState(a);
     const count = regCount(a.id);
     const mine = user && user.role === 'student'
-      ? Store.findActiveRegistration(a.id, user.id) : null;
+      ? Store.findOpenRegistration(a.id, user.id) : null;
 
     let actionHtml = '';
     if (state !== 'open') {
-      actionHtml = `<p class="muted">${state === 'closed' ? '该活动已被教师关闭报名。' : '该活动报名已截止。'}</p>`;
+      actionHtml = `<p class="muted">${state === 'closed' ? '该活动已被教师关闭报名。' : '该活动报名已截止。'}</p>`
+        + (mine ? `<p class="muted">你的报名状态：${esc(stateText(mine, a.id))}，可在“我的报名”中查看。</p>` : '');
     } else if (mine) {
-      actionHtml = '<p class="muted">你已确认参加该活动，可在“我的报名”中查看或取消。</p>';
+      actionHtml = `<p class="muted">你的报名状态：<b>${esc(stateText(mine, a.id))}</b>，可在“我的报名”中查看或取消。</p>`;
     } else {
       actionHtml = `
         <form id="form-signup" class="signup-form">
@@ -280,27 +412,57 @@
 
     const form = document.getElementById('form-signup');
     if (form) {
+      let submitting = false;
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const err = validateSignup(a, user,
-          document.getElementById('su-no').value,
-          document.getElementById('su-phone').value);
+        if (submitting) return; // 提交中重复点击直接忽略
+
+        const noEl = document.getElementById('su-no');
+        const phoneEl = document.getElementById('su-phone');
+        const err = validateSignup(a, user, noEl.value, phoneEl.value);
         if (err) { toast(err, 'error'); return; }
-        const full = regCount(a.id) >= a.capacity;
-        const status = a.eligibility ? 'pending' : (full ? 'waitlisted' : 'registered');
-        Store.addRegistration({
-          id: uid('r'),
-          activityId: a.id,
-          studentId: user.id,
-          studentName: user.name,
-          studentNo: document.getElementById('su-no').value.trim(),
-          phone: document.getElementById('su-phone').value.trim(),
-          status,
-          createdAt: new Date().toISOString()
-        });
-        toast(status === 'pending' ? '已提交，等待教师审核' : status === 'waitlisted' ? '已加入候补，按进入时间排序' : '报名成功！', 'success');
-        closeModal();
-        showView('mine');
+
+        // 幂等：已存在有效申请时返回原记录，不新增一条申请
+        const existing = Store.findOpenRegistration(a.id, user.id);
+        if (existing) { showSignupResult(a, existing, true); return; }
+
+        submitting = true;
+        const btn = form.querySelector('button[type=submit]');
+        const btnText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '提交中…';
+
+        const requestNo = 'RQ-' + Date.now().toString(36).toUpperCase() + '-' +
+          Math.random().toString(36).slice(2, 5).toUpperCase();
+
+        // 模拟一次请求往返：处理期间不允许再次提交，避免"点两次"产生重复申请
+        setTimeout(() => {
+          let reg = Store.findOpenRegistration(a.id, user.id);
+          const isRepeat = !!reg;
+          if (!reg) {
+            const full = regCount(a.id) >= a.capacity;
+            const status = a.eligibility ? 'pending' : (full ? 'waitlisted' : 'registered');
+            reg = {
+              id: uid('r'),
+              requestNo: requestNo,
+              activityId: a.id,
+              studentId: user.id,
+              studentName: user.name,
+              studentNo: noEl.value.trim(),
+              phone: phoneEl.value.trim(),
+              status: status,
+              createdAt: new Date().toISOString(),
+              lastChangeAt: new Date().toISOString()
+            };
+            Store.addRegistration(reg);
+            pushNotice(user.id, a.id, status, noticeMessage(reg, a));
+          }
+          submitting = false;
+          btn.disabled = false;
+          btn.textContent = btnText;
+          showSignupResult(a, reg, isRepeat);
+          updateNoticeBadge();
+        }, 400);
       });
     }
   }
@@ -324,16 +486,20 @@
       if (!a) return '';
       const state = activityState(a);
       const cancelable = canCancel(a);
-      const label = r.status === 'registered' ? '已确认参加' : r.status === 'pending' ? '待教师审核' : '候补第 ' + (Store.waitlistedRegistrationsOf(a.id).findIndex(x => x.id === r.id) + 1) + ' 位';
+      const label = stateText(r, a.id);
+      const unread = hasUnreadNotice(user.id, a.id);
+      const cancelLabel = r.status === 'waitlisted' ? '退出候补'
+        : r.status === 'pending' ? '撤回申请' : '取消报名';
       return `
         <div class="card">
-          <div class="card-title">${esc(a.title)}${stateBadge(state)}<span class="badge badge-mine">${label}</span></div>
+          <div class="card-title">${esc(a.title)}${stateBadge(state)}<span class="badge badge-mine">${esc(label)}</span>${unread ? '<span class="badge badge-new">有新变化</span>' : ''}</div>
           <div class="card-meta">活动时间：${fmtDateTime(a.startTime)}　地点：${esc(a.location)}</div>
           <div class="card-meta">报名时间：${fmtDateTime(r.createdAt)}　学号：${esc(r.studentNo)}　手机号：${esc(r.phone)}</div>
+          <div class="card-meta">回执号：${esc(r.requestNo || '—')}　最近变化：${fmtDateTime(r.lastChangeAt || r.createdAt)}</div>
           <div class="card-actions">
             <button type="button" class="btn btn-sm" data-detail="${a.id}">查看活动详情</button>
             <button type="button" class="btn btn-danger btn-sm" data-cancel="${r.id}" ${cancelable ? '' : 'disabled'}>
-              ${cancelable ? '取消报名' : '报名已截止，不可取消'}
+              ${cancelable ? cancelLabel : '报名已截止，不可取消'}
             </button>
           </div>
         </div>`;
@@ -492,7 +658,11 @@
     if (!next) return;
     next.status = 'registered';
     next.promotedAt = new Date().toISOString();
+    next.lastChangeAt = next.promotedAt;
     Store.updateRegistration(next);
+    const a = Store.findActivityById(activityId);
+    pushNotice(next.studentId, activityId, 'promoted',
+      `《${a ? a.title : '活动'}》有名额释放，你已从候补转为已确认参加。`);
   }
 
   function reviewRegistration(regId, result) {
@@ -501,7 +671,17 @@
     const a = Store.findActivityById(r.activityId);
     r.status = result === 'approved' ? (regCount(a.id) < a.capacity ? 'registered' : 'waitlisted') : 'rejected';
     r.reviewedAt = new Date().toISOString();
+    r.lastChangeAt = r.reviewedAt;
     Store.updateRegistration(r);
+    if (result === 'approved') {
+      pushNotice(r.studentId, r.activityId, r.status,
+        r.status === 'registered'
+          ? `你申请参加的《${a.title}》已通过审核，并确认了名额。`
+          : `你申请参加的《${a.title}》已通过审核，因名额已满进入候补，当前${stateText(r, a.id)}。`);
+    } else {
+      pushNotice(r.studentId, r.activityId, 'rejected',
+        `你申请参加的《${a.title}》未通过审核。`);
+    }
     toast(result === 'approved' ? (r.status === 'registered' ? '审核通过并确认名额' : '审核通过，加入候补队列') : '已记录审核结果');
     openRoster(a.id);
   }
